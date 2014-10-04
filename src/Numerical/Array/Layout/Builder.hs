@@ -9,6 +9,7 @@
 {-#  LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes  #-}
 {-# LANGUAGE ScopedTypeVariables#-}
+{-# LANGUAGE InstanceSigs #-}
 -- {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -189,6 +190,19 @@ isStrictlyMonotonicV cmp v = go  0 (VG.length v)
 
 
 instance  (Buffer rep Int) =>LayoutBuilder (Format DirectSparse Contiguous (S Z) rep ) (S Z) where
+  buildFormatM
+      :: forall (proxy :: * -> *) a (m :: * -> *) store.
+         ( store ~ FormatStorageRep (Format DirectSparse 'Contiguous ('S 'Z) rep)
+         , Buffer store Int
+         , Buffer store a
+         , PrimMonad m)
+      => Shape ('S 'Z) Int
+      -> proxy (Format DirectSparse 'Contiguous ('S 'Z) rep)
+      -> a
+      -> Maybe (BatchInit (Shape ('S 'Z) Int, a))
+      -> m ( Format DirectSparse 'Contiguous ('S 'Z) rep
+           , BufferMut store (PrimState m) a
+           )
   buildFormatM (size:* _) _ _ Nothing  = do
       mvI <- VGM.new 0
       vI <- VG.unsafeFreeze mvI
@@ -196,11 +210,12 @@ instance  (Buffer rep Int) =>LayoutBuilder (Format DirectSparse Contiguous (S Z)
       return $!  (FormatDirectSparseContiguous size 0 vI, mvV)
 
   buildFormatM (size:* _) _ _ (Just builder)= do
-    builtTup <- return $  fmap  ( \((ix:*Nil),v)-> (ix,v)) builder
-    --(MVPair (MVLeaf ix) (MVLeaf val)) <- materializeBatchMV $ fmap  ( \((ix:*Nil),v)-> (ix,v)) builder
+    let builtTup :: BatchInit (Int, a)
+        builtTup = fmap ( \((ix:*Nil),v)-> (ix,v)) builder
+    (MVPair (MVLeaf ix) (MVLeaf val)) <- materializeBatchMV builtTup
     -- if i swap to using this i get CRAZY type errors
-    ix <- materializeBatchMV $ fmap fst builtTup
-    val <- materializeBatchMV $ fmap snd builtTup
+    --ix <- materializeBatchMV $ fmap fst builtTup
+    --val <- materializeBatchMV $ fmap snd builtTup
     _<- IntroSort.sortBy  (\x y -> compare (fst x) (fst y)) (MVPair (MVLeaf ix) (MVLeaf val))
                                                               -- this lets me sort a pair of arrays!
     vIx <- VG.unsafeFreeze ix
