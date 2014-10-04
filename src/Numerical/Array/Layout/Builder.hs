@@ -9,7 +9,6 @@
 {-#  LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes  #-}
 {-# LANGUAGE ScopedTypeVariables#-}
-{-# LANGUAGE InstanceSigs #-}
 -- {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -197,7 +196,7 @@ instance  (Buffer rep Int) =>LayoutBuilder (Format DirectSparse Contiguous (S Z)
       return $!  (FormatDirectSparseContiguous size 0 vI, mvV)
 
   buildFormatM (size:* _) _ _ (Just builder)= do
-    let builtTup = fmap ( \((ix:*Nil),v)-> (ix,v)) builder
+    builtTup <- return $ fmap ( \((ix:*Nil),v)-> (ix,v)) builder
     (MVPair (MVLeaf ix) (MVLeaf val)) <- materializeBatchMV builtTup
     -- if i swap to using this i get CRAZY type errors
     --ix <- materializeBatchMV $ fmap fst builtTup
